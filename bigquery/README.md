@@ -1,1 +1,0 @@
-Feature-oriented Google BigQuery samples.
