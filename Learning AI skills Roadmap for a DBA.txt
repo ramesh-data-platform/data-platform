@@ -1,0 +1,497 @@
+Learning AI skills Roadmap for a DBA
+________________________________________
+Phase 1: AI Foundations (Jan–Feb 2026)
+Goal: Understand AI concepts and use cases for DBAs.
+Topics: AI vs ML vs DL, supervised vs unsupervised learning, embeddings.
+Sample Project:
+•	Create a simple classification model in Excel or Python to predict query performance category (fast/slow) using sample data.
+Free Resources:
+•	https://learn.microsoft.com/en-us/training/paths/introduction-to-ai/
+•	https://www.coursera.org/learn/ai-for-everyone
+________________________________________
+Phase 2: SQL Server AI Features (Mar–Apr 2026)
+Goal: Use built-in AI capabilities in SQL Server.
+Topics: Query Store, Automatic Tuning, Machine Learning Services, SQL Server 2025 AI (Vector Search).
+Sample Project:
+•	Enable Query Store and run Python anomaly detection inside SQL Server using sp_execute_external_script.
+Free Resources:
+•	https://learn.microsoft.com/en-us/sql/machine-learning/
+•	https://learn.microsoft.com/en-us/training/modules/intelligent-query-processing/
+________________________________________
+Phase 3: Python for AI Integration (May–Jun 2026)
+Goal: Minimal coding for AI tasks.
+Topics: Pandas, Scikit-learn basics, API calls.
+Sample Project:
+•	Build an IsolationForest anomaly detector for slow queries using Python inside SQL Server.
+Free Resources:
+•	https://www.kaggle.com/learn/python
+•	https://learn.microsoft.com/en-us/sql/machine-learning/tutorials/
+________________________________________
+Phase 4: Azure AI & OpenAI Integration (Jul–Aug 2026)
+Goal: Use cloud AI services with SQL Server.
+Topics: Cognitive Services, Azure OpenAI, Retrieval-Augmented Generation (RAG).
+Sample Project:
+•	Create a chatbot that answers SQL performance questions using Azure OpenAI and Query Store data.
+Free Resources:
+•	https://learn.microsoft.com/en-us/training/paths/azure-ai-fundamentals/
+•	https://learn.microsoft.com/en-us/azure/ai-services/openai/
+________________________________________
+Phase 5: Big Data AI with Databricks (Sep–Oct 2026)
+Goal: Apply AI to large-scale data.
+Topics: AutoML, MLflow, Generative AI in Databricks.
+Sample Project:
+•	Predict resource utilization trends using Databricks AutoML on historical workload data.
+Free Resources:
+•	https://academy.databricks.com/
+•	https://learn.microsoft.com/en-us/training/paths/data-engineer-azure-databricks/
+________________________________________
+Phase 6: Advanced Integration & Automation (Nov–Dec 2026)
+Goal: Automate AI-driven insights for DBA tasks.
+Topics: AI-powered monitoring, natural language dashboards, AI in ETL pipelines.
+Sample Project:
+•	Automate predictive alerts for disk space and performance issues using Azure Monitor anomaly detection.
+Free Resources:
+•	https://learn.microsoft.com/en-us/training/
+________________________________________
+Key Skills Summary
+•	Conceptual: AI basics, embeddings, RAG.
+•	Technical: T-SQL for AI features, Python for integration.
+•	Cloud: Azure AI, OpenAI, Databricks AutoML.
+•	Practical: Performance tuning, anomaly detection, forecasting.
+
+ 
+Phase 2: SQL Server AI Features (Mar–Apr 2026)
+Goal: Use built-in AI capabilities in SQL Server for performance tuning and anomaly detection.
+________________________________________
+Step 1: Enable Query Store
+Query Store is the foundation for automatic tuning and performance insights.
+ALTER DATABASE [YourDB] SET QUERYSTORE = ON;
+ALTER DATABASE [YourDB] SET QUERYSTORE (OPERATIONMODE = READWRITE);
+Why?
+•	Captures query execution history, plans, and runtime stats.
+•	Required for Automatic Plan Correction and Query Store hints.
+________________________________________
+Step 2: Turn On Automatic Plan Correction
+This feature automatically forces the last known good plan when regressions occur.
+ALTER DATABASE [YourDB]
+SET AUTOMATICTUNING (FORCELASTGOODPLAN = ON);
+Benefits:
+•	Detects plan regressions.
+•	Applies fixes automatically and validates improvements.
+________________________________________
+Step 3: Use Query Store Hints (No App Code Changes)
+Apply hints to problematic queries without modifying application SQL.
+EXEC sys.spquerystoresethints
+    @query_id = 12345,
+    @hint = N'OPTION (MAXDOP 4)';
+To remove:
+EXEC sys.spquerystoreremovehints @query_id = 12345;
+________________________________________
+Step 4: Enable Machine Learning Services
+Run Python scripts inside SQL Server for anomaly detection.
+EXEC sp_configure 'external scripts enabled', 1;
+RECONFIGURE;
+________________________________________
+Step 5: Sample AI Project – Anomaly Detection
+Detect slow queries using Python IsolationForest inside SQL Server.
+DECLARE @py NVARCHAR(MAX) = N'
+import pandas as pd
+from sklearn.ensemble import IsolationForest
+
+df = InputDataSet.copy()
+model = IsolationForest(contamination=0.02, randomstate=42)
+df["anomaly"] = model.fitpredict(df[["avgdurationms","avgcpums","avgreads"]])
+OutputDataSet = df[df["anomaly"]==-1]
+';
+
+EXEC spexecuteexternalscript
+  @language = N'Python',
+  @script = @py,
+  @inputdata1 = N'
+    SELECT TOP (1000)
+      qs.queryid,
+      rs.avgduration AS avgdurationms,
+      rs.avgcputime AS avgcpums,
+      rs.avglogicalioreads AS avgreads
+    FROM sys.querystoreruntimestats rs
+    JOIN sys.querystoreplan qp ON rs.planid = qp.planid
+    JOIN sys.querystorequery qs ON qp.queryid = qs.queryid
+    ORDER BY rs.lastexecutiontime DESC;',
+  @outputdata1name = N'OutputDataSet';
+________________________________________
+Step 6: Explore SQL Server 2025 AI Features
+•	Vector Search: Store embeddings and perform semantic queries.
+•	External Models: Call Azure OpenAI directly from T-SQL.
+Example:
+CREATE EXTERNAL MODEL MyOpenAIModel
+WITH (LOCATION = 'https://api.openai.azure.com/…', AUTHENTICATION = 'ManagedIdentity');
+________________________________________
+Free Resources
+•	https://learn.microsoft.com/en-us/training/modules/intelligent-query-processing/
+•	https://learn.microsoft.com/en-us/sql/machine-learning/
+•	Automatic Tuning in Azure SQL
+________________________________________
+VECTOR_SEARCH 
+
+1) Prerequisites
+•	SQL Server 2025 (17.x) build with vector features enabled.
+•	SSMS 21 or later for full client support. [azurelessons.com]
+•	An embedding provider (e.g., Azure OpenAI or Ollama) you can register via CREATE EXTERNAL MODEL. [hugobarona.com]
+________________________________________
+2) Create a table with a VECTOR(n) column
+Pick a dimension size n that matches your embedding model (e.g., 384, 512, 768).
+USE YourDb;
+
+-- Store product catalog items with embeddings
+CREATE TABLE dbo.Products (
+    ProductId     INT            NOT NULL PRIMARY KEY,
+    Title         NVARCHAR(200)  NOT NULL,
+    Description   NVARCHAR(MAX)  NULL,
+    Embedding     VECTOR(768)    NULL,   -- choose the right dimension for your model
+    ModifiedAt    DATETIME2(7)   DEFAULT SYSUTCDATETIME()
+);
+``
+Why this works: SQL Server 2025 introduces a native vector data type that stores dense arrays and supports similarity operations. [hugobarona.com]
+________________________________________
+3) Create a DiskANN vector index (required for VECTOR_SEARCH)
+VECTOR_SEARCH uses an ANN index for speed. Without it, you can only use VECTOR_DISTANCE (exact K NN) which scales poorly on large sets.
+-- Create a DiskANN vector index on the embedding column
+CREATE VECTOR INDEX IXProductsEmbedding
+ON dbo.Products(Embedding)
+USING DISKANN;  -- ANN structure optimized for SSDs and low memory
+Notes
+•	DiskANN backs the fast ANN queries with high recall (≈0.95 typical) while keeping resource use modest. [axial-sql.com]
+•	Index build time depends on row count and dimension; expect background I/O during build.
+________________________________________
+4) Register an external embedding model
+You can reference a hosted API (Azure OpenAI, Ollama behind TLS, etc.) and call it directly from T SQL to generate embeddings.
+-- Register an external model endpoint that produces embeddings
+-- Replace ENDPOINT and AUTH details with your environment
+CREATE EXTERNAL MODEL dbo.Model_Embeddings
+WITH (
+    ENDPOINT = 'https://<your-embedding-endpoint>',
+    AUTHENTICATION = 'ManagedIdentity'   -- or 'ApiKey' depending on provider
+);
+•	The Learn module and Intelligent Applications docs show using Azure OpenAI via CREATE EXTERNAL MODEL and managed identities. [hugobarona.com], [youtube.com]
+•	If you prefer Ollama, see the FastStart project that wires up SQL Server 2025 + Ollama + SSL and demonstrates model registration and calls.
+________________________________________
+5) Populate embeddings
+Use your external model to infer embeddings from text fields.
+-- Generate embeddings for existing rows
+UPDATE P
+SET Embedding = dbo.Model_Embeddings.INFER(P.Description)
+FROM dbo.Products AS P
+WHERE P.Embedding IS NULL;
+``
+You can also embed ad hoc text (e.g., a user’s query):
+DECLARE @query NVARCHAR(MAX) = N'wireless noise-cancelling headphones';
+DECLARE @qvec VECTOR(768) = dbo.ModelEmbeddings.INFER(@query);
+The Learn module demonstrates embedding generation and using those embeddings for semantic search and RAG. [hugobarona.com]
+________________________________________
+6) Run VECTOR_SEARCH: fast ANN nearest neighbors
+Return the top K nearest neighbors to a query vector, with optional filters.
+-- Find the 10 most semantically similar products for the query text
+DECLARE @q NVARCHAR(MAX) = N'wireless noise-cancelling headphones';
+DECLARE @qvec VECTOR(768) = dbo.ModelEmbeddings.INFER(@q);
+
+SELECT TOP (10)
+    ProductId,
+    Title,
+    Description,
+    -- distance or similarity can be exposed depending on your function semantics
+    VECTORDISTANCE(Embedding, @qvec) AS distance
+FROM dbo.Products
+WHERE VECTORSEARCH(Embedding, @qvec) = 1   -- ANN predicate
+ORDER BY distance ASC;                        -- smaller distance = more similar
+``
+Key points
+•	VECTOR_SEARCH(column, @q_vec) = 1 is the ANN filter that leverages the DiskANN index to locate candidates quickly. You then sort with VECTOR_DISTANCE to see the ordering (or use the ranking returned by your implementation). [axial-sql.com]
+•	For exact nearest neighbors (K NN), skip the index and use VECTOR_DISTANCE across the set—but this is CPU heavy at scale. Use exact search mainly for small collections (<≈50k vectors) or validation. [axial-sql.com]
+________________________________________
+7) Combine semantic search with business filters
+You’ll often pre filter by category, brand, or price before ANN search:
+DECLARE @q NVARCHAR(MAX) = N'in ear active noise cancellation';
+DECLARE @qvec VECTOR(768) = dbo.ModelEmbeddings.INFER(@q);
+
+SELECT TOP (20)
+    ProductId, Title, Description,
+    VECTORDISTANCE(Embedding, @qvec) AS distance
+FROM dbo.Products
+WHERE Category = N'Headphones'
+  AND Price BETWEEN 3000 AND 9000    -- INR example range
+  AND VECTORSEARCH(Embedding, @qvec) = 1
+ORDER BY distance ASC;
+Pre filtering reduces candidate count and speeds up search, which is recommended in Microsoft guidance. [axial-sql.com]
+________________________________________
+8) Exact vs Approximate: when to use which
+•	Exact (VECTOR_DISTANCE): highest precision. Use for small sets, quality checks, or when accuracy is paramount.
+•	Approximate (VECTOR_SEARCH + DiskANN): massive speed up on large sets. Accept a tiny recall trade off for much better latency.\ Microsoft and field posts recommend exact under ~50k vectors; beyond that, ANN is preferred. [axial-sql.com]
+________________________________________
+9) Maintenance and performance tips
+1.	Index refresh: Rebuild the DiskANN index after bulk loads or if you see degraded recall/latency during large updates.
+2.	Dimension consistency: Ensure all embeddings in a column share the same dimension.
+3.	Batch embedding: Generate embeddings in batches off peak; log failures for re try.
+4.	Filter then ANN: Always apply relational filters before VECTOR_SEARCH. [axial-sql.com]
+5.	Model provenance: Track which model/version generated the vectors; changing models changes semantic space.
+6.	Security: Prefer Managed Identity to call Azure OpenAI; store no API keys in T SQL when possible. [hugobarona.com]
+________________________________________
+10) Full mini demo (end to end)
+USE YourDb;
+-- 1) Table
+CREATE TABLE dbo.Docs (
+    DocId       INT PRIMARY KEY,
+    Title       NVARCHAR(200),
+    Body        NVARCHAR(MAX),
+    Embedding   VECTOR(384)
+);
+
+-- 2) Index
+CREATE VECTOR INDEX IXDocsEmbedding
+ON dbo.Docs(Embedding)
+USING DISKANN;
+
+-- 3) External model (replace with your endpoint/auth)
+CREATE EXTERNAL MODEL dbo.Emb384
+WITH (ENDPOINT = 'https://<your-embedding-endpoint>', AUTHENTICATION = 'ManagedIdentity');
+
+-- 4) Populate
+INSERT INTO dbo.Docs (DocId, Title, Body)
+VALUES (1, N'AG Conditions', N'Always On AG network and failover notes…'),
+       (2, N'Indexing Guide', N'Covering indexes and filtered indexes…'),
+       (3, N'Backup Strategy', N'Weekly full, daily diff, hourly log…');
+
+UPDATE d SET Embedding = dbo.Emb384.INFER(Body)
+FROM dbo.Docs AS d
+WHERE d.Embedding IS NULL;
+
+-- 5) Query
+DECLARE @q NVARCHAR(MAX) = N'How to choose filtered indexes for OLTP';
+DECLARE @qv VECTOR(384)  = dbo.Emb384.INFER(@q);
+
+SELECT TOP (5)
+    DocId, Title,
+    VECTORDISTANCE(Embedding, @qv) AS distance
+FROM dbo.Docs
+WHERE VECTORSEARCH(Embedding, @qv) = 1
+ORDER BY distance ASC;
+``
+This demonstrates creating, indexing, embedding, and ANN querying with VECTOR_SEARCH.\ For deeper examples and RAG patterns, see the Microsoft Learn module and Intelligent Applications guidance. [hugobarona.com], [youtube.com]
+________________________________________
+Further reading / references
+•	Microsoft Learn: Build AI powered solutions using SQL Server 2025 (vectors, embeddings, RAG, external models) [hugobarona.com]
+•	Microsoft Learn: Intelligent applications and AI (SQL Server/Azure SQL)—RAG concepts and vector examples [youtube.com]
+•	DBI Services: Vector Indexes & Semantic Search Performance—VECTOR_SEARCH vs VECTOR_DISTANCE, DiskANN and recall guidance [axial-sql.com]
+•	MSSQLTips: Vector Search in SQL Server 2025—dimensions, client support (SSMS 21), use cases [azurelessons.com]
+•	Anthony Nocentino: Ollama + SQL Server 2025 FastStart—CREATE EXTERNAL MODEL with TLS and embeddings pipeline
+________________________________________
+DBA/Platform Engineer to use AI in SQL Server with minimal coding 
+
+1) What you’ll enable (and why)
+•	Query Store to capture plans + runtime stats and enable advanced tuning features.\ Applies to SQL Server 2016+ and is on by default in SQL Server 2022+ (still validate settings). [github.com]
+•	Automatic Plan Correction to auto force last good plans on regressions (on prem/VM and Azure SQL). [coursera.org]
+•	Query Store Hints to shape individual plans without changing application SQL (SQL Server 2022+, Azure SQL). [github.com]
+•	Machine Learning Services + sp_execute_external_script to run small Python anomaly detectors inside SQL Server. [sqlyard.com], [youtube.com]
+•	Intelligent Query Processing (IQP) by setting compatibility level (e.g., 160 for SQL 2022; 170 for SQL 2025) for automatic gains (PSPO, CE feedback, etc.). [youtube.com]
+•	SQL Server 2025 Vector features (optional but powerful): VECTOR(n) type, DiskANN index, VECTOR_SEARCH, and CREATE EXTERNAL MODEL for embeddings—enabling semantic/RAG use cases in T SQL. [hugobarona.com], [axial-sql.com]
+________________________________________
+2) Architecture (high level)
+2.1 AI Tuning Assistant (Mermaid diagram)
+flowchart LR
+  A[Workload telemetry\nQuery Store + DMVs] --> B[Analyzer\nPython via spexecuteexternal_script]
+  B --> C[Recommender\nLLM summary (Azure OpenAI) or SSMS Copilot]
+  C --> D{Executor}
+  D -->|Safe| E[Automatic Plan Correction\n(force last good plan)]
+  D -->|Targeted| F[Query Store Hints\n(MAXDOP, join hints)]
+  D -->|Azure SQL| G[Automatic Indexing\n(create/drop)]
+  E --> H[Monitor & Validate\nQuery Store deltas]
+  F --> H
+  G --> H
+•	Telemetry: DMVs + Query Store give reliable performance insights. [montecarlodata.com]
+•	Executor: Safe, reversible actions—APC and Azure Automatic Tuning validate and auto rollback if no gain. [coursera.org], [bhushangawale.com]
+2.2 Vector Search (Mermaid diagram)
+ 
+•	DiskANN speeds up ANN queries with high recall. Use exact VECTOR_DISTANCE when collections are small. [axial-sql.com]
+________________________________________
+3) Environment checklist
+•	SQL Server 2017+ for Automatic Plan Correction; 2022+ for Query Store Hints; 2025 for vector features. [coursera.org], [github.com], [hugobarona.com]
+•	SSMS 21+ for full vector support (2025). [azurelessons.com]
+•	Machine Learning Services (Python) installed; enable external scripts. [sqlyard.com]
+•	Set DB compatibility level (160 for 2022, 170 for 2025) to unlock IQP features. [youtube.com]
+________________________________________
+4) Scripts (copy paste safe, with comments)
+4.1 Enable Query Store + Automatic Plan Correction
+-- Enable Query Store (required by APC & Query Store Hints)
+ALTER DATABASE [YourDB] SET QUERYSTORE = ON;
+ALTER DATABASE [YourDB] SET QUERYSTORE (OPERATIONMODE = READWRITE);
+
+-- Enable Automatic Plan Correction (safe & reversible)
+ALTER DATABASE [YourDB]
+SET AUTOMATICTUNING (FORCELASTGOODPLAN = ON);
+Why: Query Store captures plans/stats and allows APC to force last good plan when regressions occur. [coursera.org]
+4.2 Query Store Hints (apply/remove)
+-- Inspect #anomalies output (below) to choose a queryid
+DECLARE @QueryId BIGINT = 12345;
+
+-- Apply a conservative hint without changing app code
+EXEC sys.spquerystoresethints
+  @queryid = @QueryId,
+  @hint     = N'OPTION (MAXDOP 4)';
+
+-- Remove hints if needed (rollback)
+EXEC sys.spquerystoreremovehints
+  @query_id = @QueryId;
+Notes: Query Store Hints are available in SQL Server 2022+ and Azure SQL; use judiciously and monitor impact. [github.com]
+4.3 DMVs/Query Store — find top offenders
+-- Azure SQL: quick resource lens (last hour)
+SELECT TOP (100) 
+FROM sys.dmdbresourcestats
+ORDER BY endtime DESC;
+
+-- Query Store: top duration/CPU reads in last 24h, with text
+WITH recent AS (
+  SELECT rs.planid, qs.queryid,
+         MAX(rs.lastexecutiontime) AS lastexectime,
+         AVG(rs.avgduration)        AS avgdurationms,
+         AVG(rs.avgcputime)        AS avgcpums,
+         AVG(rs.avglogicalioreads)AS avgreads,
+         COUNT()                    AS samplecount
+  FROM sys.querystoreruntimestats AS rs
+  JOIN sys.querystoreplan  AS qp ON rs.planid = qp.planid
+  JOIN sys.querystorequery AS qs ON qp.queryid = qs.queryid
+  WHERE rs.lastexecutiontime > DATEADD(HOUR, -24, SYSUTCDATETIME())
+  GROUP BY rs.planid, qs.queryid
+)
+SELECT TOP (100)
+  r.*, qt.querysqltext AS querytext
+FROM recent r
+JOIN sys.querystorequery AS q
+  ON q.queryid = r.queryid
+JOIN sys.querystorequerytext AS qt
+  ON qt.querytextid = q.querytextid
+ORDER BY avgduration_ms DESC;
+Why: DMVs and Query Store provide the ground truth to prioritize tuning. [montecarlodata.com]
+4.4 Enable Python and run an anomaly detector in database
+-- One-time: allow external scripts
+EXEC spconfigure 'external scripts enabled', 1;
+RECONFIGURE;
+
+-- Create temp table from the Query Store query above
+IF OBJECTID('tempdb..#hotqueries') IS NOT NULL DROP TABLE #hotqueries;
+
+SELECT TOP (200)
+  r.queryid, r.planid, r.lastexectime,
+  r.avgdurationms, r.avgcpums, r.avgreads, r.samplecount,
+  r.querytext
+INTO #hotqueries
+FROM (
+  /* paste the Query Store query from section 4.3 here and wrap as a derived table /
+  SELECT rs.planid, qs.queryid,
+         MAX(rs.lastexecutiontime) AS lastexectime,
+         AVG(rs.avgduration)        AS avgdurationms,
+         AVG(rs.avgcputime)        AS avgcpums,
+         AVG(rs.avglogicalioreads)AS avgreads,
+         COUNT()                    AS samplecount,
+         qt.querysqltext AS querytext
+  FROM sys.querystoreruntimestats AS rs
+  JOIN sys.querystoreplan  AS qp ON rs.planid = qp.planid
+  JOIN sys.querystorequery AS qs ON qp.queryid = qs.queryid
+  JOIN sys.querystorequerytext AS qt ON qt.querytextid = qs.querytextid
+  WHERE rs.lastexecutiontime > DATEADD(HOUR, -24, SYSUTCDATETIME())
+  GROUP BY rs.planid, qs.queryid, qt.querysqltext
+) r
+ORDER BY r.avgdurationms DESC;
+
+-- Python IsolationForest flags anomalies
+DECLARE @py NVARCHAR(MAX) = N'
+import pandas as pd
+from sklearn.ensemble import IsolationForest
+
+df = InputDataSet.copy()
+for col in ["avgdurationms","avgcpums","avgreads"]:
+    df[col] = df[col].fillna(0)
+
+model = IsolationForest(nestimators=100, contamination=0.02, randomstate=42)
+df["anomaly"] = model.fitpredict(df[["avgdurationms","avgcpums","avgreads"]])
+
+OutputDataSet = df[df["anomaly"]==-1][
+    ["queryid","planid","lastexectime","avgdurationms","avgcpums","avgreads","samplecount","querytext"]
+]
+';
+
+IF OBJECTID('tempdb..#anomalies') IS NOT NULL DROP TABLE #anomalies;
+CREATE TABLE #anomalies(
+  queryid BIGINT, planid BIGINT, lastexectime DATETIME2(7),
+  avgdurationms FLOAT, avgcpums FLOAT, avgreads FLOAT,
+  samplecount BIGINT, querytext NVARCHAR(MAX)
+);
+
+INSERT INTO #anomalies
+EXEC spexecuteexternalscript
+  @language = N'Python',
+  @script   = @py,
+  @inputdata1 = N'SELECT * FROM #hotqueries',
+  @outputdata1name = N'OutputDataSet';
+
+-- Apply a hint to the worst anomaly (optional)
+DECLARE @QueryId BIGINT = (SELECT TOP (1) queryid FROM #anomalies ORDER BY avgdurationms DESC);
+IF @QueryId IS NOT NULL
+BEGIN
+  EXEC sys.spquerystoresethints @queryid=@QueryId, @hint=N'OPTION (MAXDOP 4)';
+  PRINT CONCAT('Hint applied to query_id=', @QueryId, '. Review impact in Query Store.');
+END;
+Why: sp_execute_external_script is the supported method to run Python/R in SQL Server; perfect for lightweight ML without moving data. [sqlyard.com]
+4.5 IQP: set DB compatibility level (free improvements)
+-- SQL Server 2022
+ALTER DATABASE [YourDB] SET COMPATIBILITYLEVEL = 160;
+-- SQL Server 2025
+-- ALTER DATABASE [YourDB] SET COMPATIBILITYLEVEL = 170;
+What you get: PSPO (multiple plans for parameter sensitive queries), CE feedback, optimized sp_executesql, etc., often improving performance with no code changes. [youtube.com]
+4.6 Vector Search (SQL Server 2025 only)
+-- Table with vector embeddings
+CREATE TABLE dbo.Docs (
+  DocId INT PRIMARY KEY,
+  Title NVARCHAR(200),
+  Body  NVARCHAR(MAX),
+  Embedding VECTOR(384)
+);
+
+-- DiskANN index for ANN search
+CREATE VECTOR INDEX IXDocsEmbedding
+  ON dbo.Docs(Embedding)
+  USING DISKANN;
+
+-- Register external embedding model (Azure OpenAI/Ollama/etc.)
+CREATE EXTERNAL MODEL dbo.Emb384
+WITH (ENDPOINT = 'https://<your-embedding-endpoint>',
+      AUTHENTICATION = 'ManagedIdentity'); -- or ApiKey
+
+-- Populate embeddings
+UPDATE d SET Embedding = dbo.Emb384.INFER(d.Body)
+FROM dbo.Docs AS d
+WHERE d.Embedding IS NULL;
+
+-- Query: ANN + exact distance sort
+DECLARE @q NVARCHAR(MAX) = N'Filtered indexes for OLTP workloads';
+DECLARE @qv VECTOR(384)  = dbo.Emb384.INFER(@q);
+
+SELECT TOP (10)
+  DocId, Title, VECTORDISTANCE(Embedding, @qv) AS distance
+FROM dbo.Docs
+WHERE VECTORSEARCH(Embedding, @qv) = 1
+ORDER BY distance ASC;
+Guidance: Use VECTOR_SEARCH for large collections and VECTOR_DISTANCE for smaller sets or validation; filter first for speed. [axial-sql.com]
+________________________________________
+5) Operational guidance (safe & reversible)
+•	Canary changes: apply hints/APC during off peak; monitor Query Store deltas before rolling broadly. [github.com]
+•	Azure Automatic Tuning: enable Force last good plan and Create/Drop index—Azure validates and auto reverts if needed. [youtube.com], [bhushangawale.com]
+•	Model governance (vector): track model/version used for embeddings; mixing models affects similarity space. [hugobarona.com]
+•	Security: prefer Managed Identity when invoking Azure OpenAI; avoid hardcoded keys in T SQL. [hugobarona.com]
+________________________________________
+6) Clickable resource index (free)
+•	Intelligent Query Processing (features & compatibility levels)\ https://learn.microsoft.com/en-us/sql/relational-databases/performance/intelligent-query-processing?view=sql-server-ver17 [youtube.com]
+•	Query Store Hints (apply/remove; supported hints)\ https://learn.microsoft.com/en-us/sql/relational-databases/performance/query-store-hints?view=sql-server-ver17 [github.com]
+•	Automatic Tuning (SQL Server) and Azure Automatic Tuning (create/drop index, force plan, rollback safety)\ https://learn.microsoft.com/en-us/sql/relational-databases/automatic-tuning/automatic-tuning?view=sql-server-ver17\ https://learn.microsoft.com/en-us/azure/azure-sql/database/automatic-tuning-overview?view=azuresql\ https://learn.microsoft.com/en-us/azure/azure-sql/database/automatic-tuning-enable?view=azuresql [coursera.org], [bhushangawale.com], [youtube.com]
+•	Machine Learning Services and sp_execute_external_script (Python/R inside SQL Server)\ https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-execute-external-script-transact-sql?view=sql-server-ver17 [sqlyard.com]
+•	DMVs monitoring (Azure SQL/SQL Server)\ https://learn.microsoft.com/en-us/azure/azure-sql/database/monitoring-with-dmvs?view=azuresql [montecarlodata.com]
+•	SQL Server 2025 AI: vectors, embeddings, RAG, external models\ Training module: https://learn.microsoft.com/en-us/training/modules/build-ai-solutions-sql-server/\ Overview: https://learn.microsoft.com/en-us/sql/sql-server/ai/artificial-intelligence-intelligent-applications?view=sql-server-ver17\ DiskANN/ANN guidance: https://www.dbi-services.com/blog/sql-server-2025-vector-indexes-semantic-search-performance/\ SSMS 21 & vector tips: https://www.mssqltips.com/sqlservertip/8299/vector-search-in-sql-server/ [hugobarona.com], [youtube.com], [axial-sql.com], [azurelessons.com]
+________________________________________
