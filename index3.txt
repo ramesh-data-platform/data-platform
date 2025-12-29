@@ -1,1 +1,2 @@
 This is Text3 for Semantic Search feature.
+THis is new line.
