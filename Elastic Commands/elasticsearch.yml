@@ -1,0 +1,112 @@
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: elk-stack-observability
+  namespace: elasticsearch
+spec:
+  version: 8.12.0
+  secureSettings:
+    - secretName: snapshot-secret
+  http:
+    service:
+      spec:
+        type: LoadBalancer
+      metadata:
+        annotations:
+          service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+    tls:
+      selfSignedCertificate:
+        disabled: true
+  nodeSets:
+    - name: master
+      count: 1
+      config:
+        node.roles: [master]
+        node.store.allow_mmap: false
+      podTemplate:
+        metadata:
+          labels:
+            environment: stg
+        spec:
+          containers:
+            - name: elasticsearch
+              resources:
+                limits:
+                  memory: 2Gi
+                  cpu: 500m
+              env:
+                - name: ES_JAVA_OPTS
+                  value: "-Xms1g -Xmx1g"
+      volumeClaimTemplates:
+        - metadata:
+            name: elasticsearch-data
+          spec:
+            accessModes: [ReadWriteOnce]
+            resources:
+              requests:
+                storage: 20Gi
+            storageClassName: es-managed-premium
+
+    - name: ingest
+      count: 1
+      config:
+        node.roles: [ingest]
+        node.store.allow_mmap: false
+      podTemplate:
+        metadata:
+          labels:
+            environment: stg
+        spec:
+          containers:
+            - name: elasticsearch
+              resources:
+                limits:
+                  memory: 2Gi
+                  cpu: 500m
+              env:
+                - name: ES_JAVA_OPTS
+                  value: "-Xms1g -Xmx1g"
+      volumeClaimTemplates:
+        - metadata:
+            name: elasticsearch-data
+          spec:
+            accessModes: [ReadWriteOnce]
+            resources:
+              requests:
+                storage: 20Gi
+            storageClassName: es-managed-premium
+
+    - name: data
+      count: 3
+      config:
+        node.roles: [data]
+        node.store.allow_mmap: false
+      podTemplate:
+        metadata:
+          labels:
+            environment: stg
+        spec:
+          containers:
+            - name: elasticsearch
+              resources:
+                limits:
+                  memory: 4Gi
+                  cpu: 1
+              env:
+                - name: ES_JAVA_OPTS
+                  value: "-Xms2g -Xmx2g"
+          initContainers:
+            - name: install-plugins
+              image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+              securityContext:
+                privileged: true
+              command: ['sh', '-c', 'bin/elasticsearch-plugin install --batch repository-azure && bin/elasticsearch-plugin install --batch analysis-icu']
+      volumeClaimTemplates:
+        - metadata:
+            name: elasticsearch-data
+          spec:
+            accessModes: [ReadWriteOnce]
+            resources:
+              requests:
+                storage: 50Gi
+            storageClassName: es-managed-premium
