@@ -1,0 +1,19 @@
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logstash-emailservice-config
+  namespace: elasticsearch
+data:
+  logstash.yml: |-
+    node.name: logstash-emailservice
+    pipeline.ecs_compatibility: v1
+    http.host: 0.0.0.0
+    http.port: 9600
+    log.level: info
+    queue.type: persisted
+    path.queue: /usr/share/logstash/data/queue
+
+  pipelines.yml: |-
+    - pipeline.id: emailservice_pipeline
+      path.config: /usr/share/logstash/pipeline/emailservice_pipeline.conf

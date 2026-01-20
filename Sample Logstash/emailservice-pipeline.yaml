@@ -1,0 +1,59 @@
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logstash-emailservice-pipelines
+  namespace: elasticsearch
+data:
+  emailservice_pipeline.conf: |-
+    input {
+      beats {
+        port => 5044
+      }
+    }
+
+    filter {
+      grok {
+        match => {
+          "message" => "%{TIMESTAMP_ISO8601:log_time}\|%{LOGLEVEL:log_level}\|%{DATA:module}\|%{GREEDYDATA:json_part}"
+        }
+      }
+
+
+      json {
+        source => "json_part"
+        target => "parsed"
+      }
+      
+      date {
+        match => ["log_time", "yyyy-MM-dd HH:mm:ss.SSSS"]
+        target => "@timestamp"
+      }
+
+      mutate {
+        gsub => [
+          "Exception", ' \"\"', ''
+        ]
+      }
+    
+      mutate {
+        remove_field => ["json_part", "@version","event","tags","error","agent","log"]
+        }
+        
+    
+      ruby {
+        code => "event.set('message', event.to_hash.select { |k, _| !['message'].include?(k) })"
+      }
+    }
+
+    output {
+      stdout { codec => rubydebug }
+      elasticsearch {
+        hosts => ["http://elk-stack-observability-es-http:9200"]
+        index => "emailservicelog-%{+YYYY.MM.dd}"
+        user => "${ELASTIC_USERNAME}"
+        password => "${ELASTIC_PASSWORD}"
+        ssl => false
+        ilm_enabled => false
+      }
+    }
